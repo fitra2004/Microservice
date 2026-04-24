@@ -1,0 +1,102 @@
+package com.fitra.order.service;
+
+import java.util.List;
+
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.stereotype.Service;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.web.client.RestTemplate;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fitra.order.model.Order;
+import com.fitra.order.repository.OrderRepository;
+import com.fitra.order.vo.Produk;
+import com.fitra.order.vo.ResponseTemplate;
+
+
+@Service
+public class OrderService {
+    @Autowired
+    private DiscoveryClient discoveryClient;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private Queue myQueue;
+
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    public void sendMessage(String message) {
+        rabbitTemplate.convertAndSend(myQueue.getName(), message);
+        System.out.println("Message sent: " + message);
+    }
+
+    private String convertOrderToJson(Order order) {
+        try {
+            return objectMapper.writeValueAsString(order);
+        } catch (Exception e) {
+            return order.toString();
+        }
+    }
+
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
+    public Order getOrderById(Integer id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+    }
+
+    public Order createOrder(Order order) {
+        Order savedOrder = orderRepository.save(order);
+        sendMessage(convertOrderToJson(savedOrder));
+        return savedOrder;
+    }
+
+    public Order updateOrder(Order order) {
+        Order updatedOrder = orderRepository.save(order);
+        sendMessage(convertOrderToJson(updatedOrder));
+        return updatedOrder;
+    }
+
+    public void deleteOrder(Integer id) {
+        sendMessage("{\"event\":\"Order deleted\",\"orderId\":" + id + "}");
+        orderRepository.deleteById(id);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteOrdersByPelanggan(Integer idPelanggan) {
+        orderRepository.deleteByIdPelanggan(idPelanggan);
+    }
+
+    public List<Order> getOrdersByPelanggan(Integer idPelanggan) {
+        return orderRepository.findByIdPelanggan(idPelanggan);
+    }
+
+    public ResponseTemplate getOrderWithProduk(Integer id) {
+        Order order = getOrderById(id);
+        List<ServiceInstance> instances = discoveryClient.getInstances("PRODUK");
+        if (instances.isEmpty()) {
+            throw new RuntimeException("PRODUK service is not available");
+        }
+        ServiceInstance serviceInstance = instances.get(0);
+        Produk produk = restTemplate.getForObject(
+                serviceInstance.getUri() + "/api/produk/" + order.getIdProduk(),
+                Produk.class);
+        ResponseTemplate vo = new ResponseTemplate();
+        vo.setOrder(order);
+        vo.setProduk(produk);
+        return vo;
+    }
+}

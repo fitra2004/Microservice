@@ -1,0 +1,8 @@
+com\fitra\order\service\OrderService.class
+com\fitra\order\vo\ResponseTemplate.class
+com\fitra\order\model\Order.class
+com\fitra\order\vo\Produk.class
+com\fitra\order\repository\OrderRepository.class
+com\fitra\order\OrderApplication.class
+com\fitra\order\RabbitMqConfig.class
+com\fitra\order\controller\OrderController.class
