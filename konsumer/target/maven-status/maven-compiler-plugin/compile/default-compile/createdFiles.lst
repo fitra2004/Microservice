@@ -1,0 +1,3 @@
+com\example\konsumer\KonsumerService.class
+com\example\konsumer\KonsumerApplication.class
+com\example\konsumer\RabbitMQConfig.class
